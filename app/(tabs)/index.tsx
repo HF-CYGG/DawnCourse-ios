@@ -1,15 +1,31 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Course } from '../../src/core/domain/models/Course';
 import { Semester } from '../../src/core/domain/models/Semester';
 import { CourseRepository, SemesterRepository, SettingsRepository } from '../../src/core/data/repository';
-import { calculateCurrentWeek, getDayOfWeek, formatDate } from '../../src/shared/utils/dateUtils';
-import { isCourseActive } from '../../src/shared/utils/courseUtils';
+import { calculateCurrentWeek, getDayOfWeek } from '../../src/shared/utils/dateUtils';
 import { TimetableLayoutEngine } from '../../src/shared/layout/TimetableLayoutEngine';
 import { SectionTime } from '../../src/core/domain/models/Settings';
+
+const applyAlphaToHex = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '');
+  if (normalized.length === 3) {
+    const r = parseInt(normalized[0] + normalized[0], 16);
+    const g = parseInt(normalized[1] + normalized[1], 16);
+    const b = parseInt(normalized[2] + normalized[2], 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  if (normalized.length === 6) {
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return hex;
+};
 
 export default function TimetableScreen() {
   const router = useRouter();
@@ -18,6 +34,27 @@ export default function TimetableScreen() {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [sectionTimes, setSectionTimes] = useState<SectionTime[]>([]);
+  // 设置项：是否隐藏非本周课程、是否显示周末
+  const [hideNonCurrentWeekCourses, setHideNonCurrentWeekCourses] = useState(true);
+  const [showWeekend, setShowWeekend] = useState(true);
+  const [showSidebarTime, setShowSidebarTime] = useState(true);
+  const [showSidebarIndex, setShowSidebarIndex] = useState(true);
+  const [showDateInHeader, setShowDateInHeader] = useState(false);
+  // 设置项：课表单节高度、卡片圆角、网格线宽
+  const [courseItemHeight, setCourseItemHeight] = useState(60);
+  const [courseCardRadius, setCourseCardRadius] = useState(6);
+  const [gridLineWidth, setGridLineWidth] = useState(0.5);
+  const [courseCardOpacity, setCourseCardOpacity] = useState(1);
+  const [gridLineStyle, setGridLineStyle] = useState<'solid' | 'dashed' | 'dotted'>('solid');
+  const [gridLineColor, setGridLineColor] = useState('#E5E7EB');
+  const [gridLineAlpha, setGridLineAlpha] = useState(1);
+  const [showCourseIcons, setShowCourseIcons] = useState(true);
+  const [fontStyle, setFontStyle] = useState<'system' | 'serif' | 'monospace'>('system');
+  const [wallpaperUri, setWallpaperUri] = useState<string | undefined>(undefined);
+  const [wallpaperMode, setWallpaperMode] = useState<'crop' | 'fill'>('crop');
+  const [transparency, setTransparency] = useState(0);
+  const [backgroundBlur, setBackgroundBlur] = useState(0);
+  const [backgroundBrightness, setBackgroundBrightness] = useState(1);
   
   // 当页面获得焦点时刷新数据，确保课表显示最新学期与课程
   useFocusEffect(
@@ -32,6 +69,26 @@ export default function TimetableScreen() {
     
     const settings = await SettingsRepository.getSettings();
     setSectionTimes(settings.sectionTimes);
+    // 同步显示相关设置，确保课表布局与用户配置一致
+    setHideNonCurrentWeekCourses(settings.hideNonCurrentWeekCourses);
+    setShowWeekend(settings.showWeekend);
+    setShowSidebarTime(settings.showSidebarTime);
+    setShowSidebarIndex(settings.showSidebarIndex);
+    setShowDateInHeader(settings.showDateInHeader);
+    setCourseItemHeight(settings.courseItemHeight);
+    setCourseCardRadius(settings.courseCardRadius);
+    setGridLineWidth(settings.gridLineWidth);
+    setCourseCardOpacity(settings.courseCardOpacity);
+    setGridLineStyle(settings.gridLineStyle);
+    setGridLineColor(settings.gridLineColor);
+    setGridLineAlpha(settings.gridLineAlpha);
+    setShowCourseIcons(settings.showCourseIcons);
+    setFontStyle(settings.fontStyle);
+    setWallpaperUri(settings.wallpaper);
+    setWallpaperMode(settings.wallpaperMode);
+    setTransparency(settings.transparency);
+    setBackgroundBlur(settings.backgroundBlur);
+    setBackgroundBrightness(settings.backgroundBrightness);
 
     if (sem) {
       const week = calculateCurrentWeek(sem.startDate);
@@ -61,19 +118,17 @@ export default function TimetableScreen() {
     router.push('/course/new');
   };
 
-  const handleWeekChange = (week: number) => {
-    if (week < 1 || (semester && week > semester.weekCount)) return;
-    setSelectedWeek(week);
-  };
+  const fontFamily = fontStyle === 'serif' ? 'serif' : fontStyle === 'monospace' ? 'monospace' : undefined;
+  const textFontStyle = fontFamily ? { fontFamily } : undefined;
 
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
         <TouchableOpacity onPress={() => router.push('/semester/index')} style={styles.weekButton}>
-          <Text style={styles.weekText}>第 {selectedWeek} 周</Text>
+          <Text style={[styles.weekText, textFontStyle]}>第 {selectedWeek} 周</Text>
           <Ionicons name="chevron-down" size={16} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.subtitle, textFontStyle]}>
           {semester ? (selectedWeek === currentWeek ? '本周' : '非本周') : '未设置学期'}
         </Text>
       </View>
@@ -91,6 +146,7 @@ export default function TimetableScreen() {
   const renderWeekBar = () => {
     // 表头显示“周一至周日”与对应日期，突出“今天”
     const days = ['一', '二', '三', '四', '五', '六', '日'];
+    const dayNumbers = showWeekend ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5];
     const today = new Date();
     const todayDay = getDayOfWeek(today); // 返回 1-7，其中 1 表示周一
     
@@ -116,14 +172,17 @@ export default function TimetableScreen() {
             {weekDates.length > 0 ? (weekDates[0].getMonth() + 1) + '月' : ''}
           </Text>
         </View>
-        {days.map((d, index) => {
-          const isToday = semester && selectedWeek === currentWeek && (index + 1) === todayDay;
+        {dayNumbers.map((dayNumber) => {
+          const dayLabel = days[dayNumber - 1];
+          const isToday = semester && selectedWeek === currentWeek && dayNumber === todayDay;
           return (
-            <View key={index} style={[styles.dayColumn, isToday && styles.todayColumn]}>
-              <Text style={[styles.dayText, isToday && styles.todayText]}>{d}</Text>
-              <Text style={[styles.dateText, isToday && styles.todayText]}>
-                {weekDates.length > 0 ? weekDates[index].getDate() : ''}
-              </Text>
+            <View key={dayNumber} style={[styles.dayColumn, isToday && styles.todayColumn]}>
+              <Text style={[styles.dayText, isToday && styles.todayText, textFontStyle]}>{dayLabel}</Text>
+              {showDateInHeader && (
+                <Text style={[styles.dateText, isToday && styles.todayText, textFontStyle]}>
+                  {weekDates.length > 0 ? weekDates[dayNumber - 1]?.getDate() : ''}
+                </Text>
+              )}
             </View>
           );
         })}
@@ -132,16 +191,21 @@ export default function TimetableScreen() {
   };
 
   const renderTimetable = () => {
-    // 网格高度基于每日最大节数（默认 12 节）
-    const sections = Array.from({ length: 12 }, (_, i) => i + 1);
+    // 网格高度基于每日最大节数（优先使用设置中的节次数量）
+    const maxSections = sectionTimes.length > 0 ? sectionTimes.length : 12;
+    const sections = Array.from({ length: maxSections }, (_, i) => i + 1);
+    const dayCount = showWeekend ? 7 : 5;
+    const sectionHeight = courseItemHeight;
+    const gridHeight = sectionHeight * maxSections;
+    const borderStyle = gridLineStyle;
     
     // 使用与安卓一致的“课表布局引擎”计算显示项（包含冲突分栏与背景课程层）
     const layoutItems = TimetableLayoutEngine.calculateLayoutItems(
       courses,
       selectedWeek,
-      12,
-      true // 暂时启用“隐藏非本周课程”，后续可从设置开关读取
-    );
+      maxSections,
+      hideNonCurrentWeekCourses
+    ).filter(item => showWeekend || item.safeDayOfWeek <= 5);
 
     return (
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -149,35 +213,62 @@ export default function TimetableScreen() {
           {/* 左侧侧栏：显示节次编号与对应开始时间 */}
           <View style={styles.sidebar}>
             {sections.map(s => (
-              <View key={s} style={styles.sidebarCell}>
-                <Text style={styles.sidebarText}>{s}</Text>
-                <Text style={styles.sidebarTime}>
-                   {sectionTimes[s-1] ? sectionTimes[s-1].start : ''}
-                </Text>
+              <View key={s} style={[styles.sidebarCell, { height: sectionHeight }]}>
+                {showSidebarIndex && <Text style={[styles.sidebarText, textFontStyle]}>{s}</Text>}
+                {showSidebarTime && (
+                  <Text style={[styles.sidebarTime, textFontStyle]}>
+                    {sectionTimes[s-1] ? sectionTimes[s-1].start : ''}
+                  </Text>
+                )}
               </View>
             ))}
           </View>
 
-          {/* 课程网格：背景虚线 + 每日竖线 + 课程块绝对定位 */}
-          <View style={styles.grid}>
-             {/* 背景横线：每节 60 高度，提供视觉分隔 */}
+          {/* 课程网格：背景横线 + 每日竖线 + 课程块绝对定位 */}
+          <View style={[styles.grid, { height: gridHeight }]}>
+             {/* 背景横线：每节高度基于设置，提供视觉分隔 */}
              {sections.map(s => (
-               <View key={`line-${s}`} style={styles.gridLine} />
+               <View
+                 key={`line-${s}`}
+                 style={[
+                   styles.gridLine,
+                   {
+                     height: sectionHeight,
+                     top: (s - 1) * sectionHeight,
+                     borderBottomWidth: gridLineWidth,
+                     borderStyle,
+                     borderBottomColor: applyAlphaToHex(gridLineColor, gridLineAlpha),
+                   }
+                 ]}
+               />
              ))}
              
-             {/* 每日竖线：将网格等分为 7 列（周一至周日） */}
-             {Array.from({length: 7}).map((_, i) => (
-                <View key={`vline-${i}`} style={[styles.gridVLine, { left: `${(i) * (100/7)}%` }]} />
+             {/* 每日竖线：将网格等分为 5/7 列（根据设置隐藏周末） */}
+             {Array.from({length: dayCount}).map((_, i) => (
+                <View
+                  key={`vline-${i}`}
+                  style={[
+                    styles.gridVLine,
+                    {
+                      left: `${(i) * (100 / dayCount)}%`,
+                      borderLeftWidth: gridLineWidth,
+                      borderStyle,
+                      borderLeftColor: applyAlphaToHex(gridLineColor, gridLineAlpha),
+                    }
+                  ]}
+                />
              ))}
 
             {/* Course Blocks（使用与安卓一致的分栏与背景课程规则） */}
             {layoutItems.map(item => {
-              const top = (item.safeStartSection - 1) * 60;
-              const height = (item.safeEndSection - item.safeStartSection + 1) * 60 - 2;
-              const dayWidthPercent = 100 / 7;
+              const top = (item.safeStartSection - 1) * sectionHeight;
+              const height = (item.safeEndSection - item.safeStartSection + 1) * sectionHeight - 2;
+              const dayWidthPercent = 100 / dayCount;
               const laneWidthPercent = dayWidthPercent / item.laneCount;
               const dayLeftPercent = (item.safeDayOfWeek - 1) * dayWidthPercent;
               const leftPercent = dayLeftPercent + item.laneIndex * laneWidthPercent;
+              const baseOpacity = item.isCurrentWeek ? 1 : 0.6;
+              const finalOpacity = Math.max(0, Math.min(1, baseOpacity * courseCardOpacity));
               return (
                 <TouchableOpacity
                   key={`${item.course.id}-${item.laneIndex}-${item.safeStartSection}`}
@@ -189,14 +280,16 @@ export default function TimetableScreen() {
                       left: `${leftPercent}%`,
                       width: `${laneWidthPercent}%`,
                       backgroundColor: item.course.color || '#007AFF',
-                      opacity: item.isCurrentWeek ? 1 : 0.6,
+                      borderRadius: courseCardRadius,
+                      opacity: finalOpacity,
                     }
                   ]}
                   onPress={() => router.push(`/course/${item.course.id}`)}
                 >
                   <View style={styles.courseBlockContent}>
-                    <Text style={styles.courseName} numberOfLines={3}>{item.course.name}</Text>
-                    <Text style={styles.courseLocation} numberOfLines={1}>{item.course.location}</Text>
+                    {showCourseIcons && <Ionicons name="book" size={12} color="#fff" style={styles.courseIcon} />}
+                    <Text style={[styles.courseName, textFontStyle]} numberOfLines={3}>{item.course.name}</Text>
+                    <Text style={[styles.courseLocation, textFontStyle]} numberOfLines={1}>{item.course.location}</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -207,12 +300,31 @@ export default function TimetableScreen() {
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+  const content = (
+    <SafeAreaView style={[styles.container, wallpaperUri && styles.containerTransparent]} edges={['top']}>
       {renderHeader()}
       {renderWeekBar()}
       {renderTimetable()}
     </SafeAreaView>
+  );
+
+  if (!wallpaperUri) {
+    return content;
+  }
+
+  return (
+    <ImageBackground
+      source={{ uri: wallpaperUri }}
+      style={styles.wallpaperBackground}
+      resizeMode={wallpaperMode === 'fill' ? 'stretch' : 'cover'}
+      blurRadius={Math.round(backgroundBlur)}
+    >
+      <View style={[styles.wallpaperBrightnessMask, { backgroundColor: `rgba(0,0,0,${Math.max(0, Math.min(1, 1 - backgroundBrightness))})` }]}>
+        <View style={[styles.wallpaperMask, { backgroundColor: `rgba(255,255,255,${transparency})` }]}>
+          {content}
+        </View>
+      </View>
+    </ImageBackground>
   );
 }
 
@@ -220,6 +332,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  containerTransparent: {
+    backgroundColor: 'transparent',
+  },
+  wallpaperBackground: {
+    flex: 1,
+  },
+  wallpaperBrightnessMask: {
+    flex: 1,
+  },
+  wallpaperMask: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -321,11 +445,11 @@ const styles = StyleSheet.create({
   grid: {
     flex: 1,
     position: 'relative',
-    height: 60 * 12, // 每节高度按 60 像素计算，共 12 节
+    height: 60 * 12, // 默认高度（运行时会按设置覆盖）
   },
   gridLine: {
     height: 60,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 0,
     borderBottomColor: '#eee',
     width: '100%',
     position: 'absolute',
@@ -335,8 +459,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 0.5,
-    backgroundColor: '#eee',
+    width: 0,
+    borderLeftWidth: 0,
+    borderLeftColor: '#eee',
   },
   courseBlock: {
     position: 'absolute',
@@ -349,6 +474,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  courseIcon: {
+    marginBottom: 2,
   },
   courseName: {
     fontSize: 10,

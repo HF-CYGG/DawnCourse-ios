@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { CourseRepository, SemesterRepository } from '../../src/core/data/repository';
+import { Ionicons } from '@expo/vector-icons';
+import { CourseRepository, SemesterRepository, SettingsRepository } from '../../src/core/data/repository';
 import { Course } from '../../src/core/domain/models/Course';
 import * as Crypto from 'expo-crypto';
 
@@ -25,14 +26,22 @@ export default function CourseEditorScreen() {
   const [endWeek, setEndWeek] = useState(16);
   const [weekType, setWeekType] = useState(0); // 0: all, 1: odd, 2: even
   const [color, setColor] = useState(COLORS[0]);
+  // 最大节次：用于构建选择列表，保持与作息设置一致
+  const [maxSections, setMaxSections] = useState(12);
 
   useEffect(() => {
     if (!isNew && typeof id === 'string') {
       loadCourse(id);
+      return;
+    }
+    if (isNew) {
+      initNewCourseDefaults();
     }
   }, [id]);
 
   const loadCourse = async (courseId: string) => {
+    const settings = await SettingsRepository.getSettings();
+    setMaxSections(settings.sectionTimes.length || 12);
     const course = await CourseRepository.getCourseById(courseId);
     if (course) {
       setName(course.name);
@@ -46,6 +55,21 @@ export default function CourseEditorScreen() {
       setWeekType(course.weekType);
       setColor(course.color || COLORS[0]);
     }
+  };
+
+  const initNewCourseDefaults = async () => {
+    // 新建课程时读取设置与当前学期，初始化默认参数
+    const settings = await SettingsRepository.getSettings();
+    setDuration(settings.defaultCourseDuration);
+    setMaxSections(settings.sectionTimes.length || 12);
+    const currentSemester = await SemesterRepository.getCurrentSemester();
+    if (currentSemester) {
+      setEndWeek(currentSemester.weekCount);
+    }
+    const today = new Date();
+    const day = today.getDay();
+    const mappedDay = day === 0 ? 7 : day;
+    setDayOfWeek(mappedDay);
   };
 
   const handleSave = async () => {
@@ -85,6 +109,7 @@ export default function CourseEditorScreen() {
     router.back();
   };
 
+  // 通用输入行：用于文本输入
   const renderSection = (label: string, value: string | number, onValueChange: (v: string) => void, keyboardType: any = 'default') => (
     <View style={styles.inputRow}>
       <Text style={styles.label}>{label}</Text>
@@ -96,6 +121,49 @@ export default function CourseEditorScreen() {
       />
     </View>
   );
+
+  // 选择行：点击后弹出选择列表
+  const renderSelectRow = (label: string, valueText: string, onPress: () => void) => (
+    <TouchableOpacity style={styles.inputRow} onPress={onPress}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.selectRight}>
+        <Text style={styles.selectValue}>{valueText}</Text>
+        <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
+      </View>
+    </TouchableOpacity>
+  );
+
+  // 选择星期
+  const selectDayOfWeek = () => {
+    Alert.alert('选择星期', '', [
+      { text: '周一', onPress: () => setDayOfWeek(1) },
+      { text: '周二', onPress: () => setDayOfWeek(2) },
+      { text: '周三', onPress: () => setDayOfWeek(3) },
+      { text: '周四', onPress: () => setDayOfWeek(4) },
+      { text: '周五', onPress: () => setDayOfWeek(5) },
+      { text: '周六', onPress: () => setDayOfWeek(6) },
+      { text: '周日', onPress: () => setDayOfWeek(7) },
+      { text: '取消', style: 'cancel' },
+    ]);
+  };
+
+  // 选择开始节次
+  const selectStartSection = () => {
+    const options = Array.from({ length: maxSections }, (_, i) => i + 1).map(i => ({
+      text: `第 ${i} 节`,
+      onPress: () => setStartSection(i),
+    }));
+    Alert.alert('选择开始节次', '', [...options, { text: '取消', style: 'cancel' }]);
+  };
+
+  // 选择持续节数
+  const selectDuration = () => {
+    const options = [1, 2, 3, 4].map(i => ({
+      text: `${i} 节`,
+      onPress: () => setDuration(i),
+    }));
+    Alert.alert('选择持续节数', '', [...options, { text: '取消', style: 'cancel' }]);
+  };
 
   return (
     <View style={styles.container}>
@@ -117,9 +185,9 @@ export default function CourseEditorScreen() {
         </View>
 
         <View style={[styles.formGroup, { marginTop: 20 }]}>
-          {renderSection('星期', dayOfWeek, v => setDayOfWeek(parseInt(v) || 1), 'number-pad')}
-          {renderSection('开始节次', startSection, v => setStartSection(parseInt(v) || 1), 'number-pad')}
-          {renderSection('持续节数', duration, v => setDuration(parseInt(v) || 1), 'number-pad')}
+          {renderSelectRow('星期', `周${['一','二','三','四','五','六','日'][dayOfWeek - 1]}`, selectDayOfWeek)}
+          {renderSelectRow('开始节次', `第 ${startSection} 节`, selectStartSection)}
+          {renderSelectRow('持续节数', `${duration} 节`, selectDuration)}
         </View>
 
         <View style={[styles.formGroup, { marginTop: 20 }]}>
@@ -215,6 +283,15 @@ const styles = StyleSheet.create({
     paddingRight: 16,
     borderBottomWidth: 0.5,
     borderBottomColor: '#c8c7cc',
+  },
+  selectRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectValue: {
+    fontSize: 17,
+    color: '#8e8e93',
+    marginRight: 6,
   },
   label: {
     fontSize: 17,

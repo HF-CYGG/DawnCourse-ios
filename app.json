@@ -40,6 +40,9 @@
       "expo-task-manager",
       "./plugins/withWidget"
     ],
+    "extra": {
+      "versionCode": 100
+    },
     "scheme": "dawncourse",
     "newArchEnabled": true
   }

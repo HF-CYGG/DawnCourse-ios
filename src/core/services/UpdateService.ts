@@ -1,4 +1,5 @@
 import { Alert, Linking } from 'react-native';
+import Constants from 'expo-constants';
 import { SettingsRepository } from '../data/repository/SettingsRepository';
 
 const UPDATE_URL = 'http://yyh163.xyz:10000/version.json';
@@ -46,11 +47,17 @@ export const UpdateService = {
         return;
       }
       
-      // 版本比较：
-      // 说明：当前版本号应从原生信息读取（示例使用占位值）
-      const currentVersionCode = 100; // Placeholder, sync with app.json
+      // 版本比较策略：
+      // 1) 优先使用版本号（versionCode）进行比较
+      // 2) 若本地未配置 versionCode，则回退为版本名（versionName）逐段比较
+      const { versionCode: currentVersionCode, versionName: currentVersionName } = getCurrentVersion();
       
-      if (versionInfo.versionCode > currentVersionCode) {
+      const shouldUpdate =
+        currentVersionCode > 0
+          ? versionInfo.versionCode > currentVersionCode
+          : compareVersionName(versionInfo.versionName, currentVersionName) > 0;
+
+      if (shouldUpdate) {
         // 检查“忽略此版本”逻辑
         const settings = await SettingsRepository.getSettings();
         if (!isManual && settings.ignoreVersion === versionInfo.versionName && !versionInfo.forceUpdate) {
@@ -89,4 +96,27 @@ export const UpdateService = {
       if (isManual) Alert.alert('错误', '检查更新时发生错误');
     }
   }
+};
+
+// 读取当前应用版本信息
+// 说明：优先读取配置中的 versionCode，便于与服务端数字版本对齐
+const getCurrentVersion = () => {
+  const versionName = Constants.expoConfig?.version ?? '0.0.0';
+  const rawVersionCode = Constants.expoConfig?.extra?.versionCode;
+  const versionCode = typeof rawVersionCode === 'number' ? rawVersionCode : 0;
+  return { versionName, versionCode };
+};
+
+// 按“主.次.修订...”逐段比较版本名
+const compareVersionName = (serverVersion: string, currentVersion: string) => {
+  const serverParts = serverVersion.split('.').map(n => parseInt(n, 10));
+  const currentParts = currentVersion.split('.').map(n => parseInt(n, 10));
+  const maxLen = Math.max(serverParts.length, currentParts.length);
+  for (let i = 0; i < maxLen; i++) {
+    const s = serverParts[i] || 0;
+    const c = currentParts[i] || 0;
+    if (s > c) return 1;
+    if (s < c) return -1;
+  }
+  return 0;
 };

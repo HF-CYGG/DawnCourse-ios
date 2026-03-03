@@ -1,7 +1,7 @@
-import { View, StyleSheet, TouchableOpacity, Text, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { CourseRepository, SemesterRepository } from '../../src/core/data/repository';
 import * as Crypto from 'expo-crypto';
 import { qzInjectionBootstrap } from '../../src/shared/import/qzScripts';
@@ -14,7 +14,31 @@ export default function WebImportScreen() {
   const router = useRouter();
   const webviewRef = useRef<WebView>(null);
   const [url, setUrl] = useState('https://jwxt.xxxx.edu.cn'); // Default or user input
+  // 地址输入框状态：用于展示与编辑
+  const [inputUrl, setInputUrl] = useState('https://jwxt.xxxx.edu.cn');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // 读取上次访问地址，提升多次导入的便捷性
+    const loadLastUrl = async () => {
+      const settings = await SettingsRepository.getSettings();
+      const lastUrl = settings.lastImportUrl || 'https://jwxt.xxxx.edu.cn';
+      setUrl(lastUrl);
+      setInputUrl(lastUrl);
+    };
+    loadLastUrl();
+  }, []);
+
+  // 应用输入地址并持久化
+  const applyUrl = async () => {
+    const nextUrl = inputUrl.trim();
+    if (!nextUrl) {
+      Alert.alert('提示', '请输入教务系统网址');
+      return;
+    }
+    setUrl(nextUrl);
+    await SettingsRepository.updateSettings({ lastImportUrl: nextUrl });
+  };
 
   const handleMessage = async (event: any) => {
     try {
@@ -91,6 +115,22 @@ export default function WebImportScreen() {
           <Text style={styles.headerButton}>提取</Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.urlBar}>
+        <TextInput
+          style={styles.urlInput}
+          value={inputUrl}
+          onChangeText={setInputUrl}
+          placeholder="输入教务系统网址"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          returnKeyType="go"
+          onSubmitEditing={applyUrl}
+        />
+        <TouchableOpacity style={styles.urlAction} onPress={applyUrl}>
+          <Text style={styles.urlActionText}>前往</Text>
+        </TouchableOpacity>
+      </View>
       {loading && (
         <View style={styles.loadingMask}>
           <ActivityIndicator size="large" color="#007AFF" />
@@ -129,9 +169,40 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
+  urlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#f2f2f7',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#d1d1d6',
+  },
+  urlInput: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    borderWidth: 0.5,
+    borderColor: '#d1d1d6',
+  },
+  urlAction: {
+    marginLeft: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  urlActionText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   loadingMask: {
     position: 'absolute',
-    top: 60,
+    top: 110,
     left: 0,
     right: 0,
     zIndex: 9,

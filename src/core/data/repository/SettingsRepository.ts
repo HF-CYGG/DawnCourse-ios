@@ -23,8 +23,30 @@ const DEFAULT_SECTION_TIMES: SectionTime[] = [
 const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   transparency: 0,
+  defaultCourseDuration: 2,
+  hideNonCurrentWeekCourses: true,
+  showWeekend: true,
+  showSidebarTime: true,
+  showSidebarIndex: true,
+  showDateInHeader: false,
+  dynamicColor: true,
+  fontStyle: 'system',
+  courseItemHeight: 60, // 课表单节高度（像素）
+  courseCardRadius: 6, // 课程卡片圆角（像素）
+  courseCardOpacity: 1,
+  gridLineWidth: 0.5, // 网格线宽（像素）
+  gridLineStyle: 'solid',
+  gridLineColor: '#E5E7EB',
+  gridLineAlpha: 1,
+  showCourseIcons: true,
   enableNotifications: true,
   notificationAdvanceMinutes: 20,
+  enablePersistentNotification: false,
+  enableAutoMute: false,
+  wallpaperMode: 'crop',
+  backgroundBlur: 0,
+  backgroundBrightness: 1,
+  lastImportUrl: 'https://jwxt.xxxx.edu.cn',
   sectionTimes: DEFAULT_SECTION_TIMES,
 };
 

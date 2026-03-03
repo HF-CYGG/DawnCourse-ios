@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { initDatabase } from '../src/core/data/database';
 import { registerBackgroundFetchAsync } from '../src/core/tasks/backgroundFetch';
 import { NotificationService } from '../src/core/services/NotificationService';
+import { NotificationScheduler } from '../src/core/services/NotificationScheduler';
 import { refreshWidget } from '../src/shared/widget';
 import { StatusBar } from 'expo-status-bar';
 
@@ -21,6 +22,8 @@ export default function RootLayout() {
       const granted = await NotificationService.requestPermissions();
       if (granted) {
         await NotificationService.getPushToken();
+        // 同步本地提醒任务，确保课表提醒与设置一致
+        await NotificationScheduler.scheduleReminders();
       }
 
       // 4. 首次刷新 Widget：保证桌面小组件在首次打开 App 时有数据

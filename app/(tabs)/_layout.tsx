@@ -1,10 +1,25 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme } from 'react-native';
+import { useEffect, useState } from 'react';
+import { SettingsRepository } from '../../src/core/data/repository';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const activeColor = '#007AFF'; // 强调色：iOS 蓝（与系统风格一致）
+  const [activeColor, setActiveColor] = useState('#007AFF');
+
+  useEffect(() => {
+    let isMounted = true;
+    SettingsRepository.getSettings().then(settings => {
+      if (!isMounted) return;
+      if (settings.dynamicColor) {
+        setActiveColor(settings.gridLineColor || '#007AFF');
+      } else {
+        setActiveColor('#007AFF');
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <Tabs
